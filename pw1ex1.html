@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sorting Algorithms</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family:  sans-serif;
+            background: linear-gradient(135deg,#3b4986 0%,#000000 100%);
+            min-height:100vh; color:white; padding:20px;
+        }
+        .container { max-width:1200px; margin:0 auto; }
+        header { text-align:center; margin-bottom:40px; }
+        h1 {
+            font-size:3em; margin-bottom:10px; text-shadow:2px 2px 4px rgba(0,0,0,.3);
+            background: linear-gradient(to right,#fcfcfc,#ffffff);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+        }
+        .subtitle { font-size:1.1em; opacity:.9; }
+        .slide {
+            background: rgba(255,255,255,0.08); backdrop-filter: blur(8px);
+            border-radius:16px; padding:28px; margin-bottom:30px;
+            display:none; animation:fadeIn .4s;
+            border:1px solid rgba(255,255,255,0.08);
+        }
+        .slide.active { display:block; }
+        @keyframes fadeIn { from {opacity:0; transform:translateY(12px)} to {opacity:1; transform:none} }
+        .algo-title { font-size:2em; color:#93c5fd; margin-bottom:8px; }
+        .description { margin-bottom:16px; opacity:.95; }
+        .visualization {
+            background: rgba(0,0,0,0.18); border-radius:12px; padding:18px; margin-bottom:18px; min-height:220px;
+        }
+        .bars-container { display:flex; align-items:flex-end; justify-content:center; height:200px; gap:4px; }
+        .bar { flex:1; max-width:36px; background:#3b82f6; border-radius:6px 6px 0 0; transition:all .18s ease; position:relative; }
+        .bar:hover::after {
+            content: attr(data-value); position:absolute; top:-28px; left:50%; transform:translateX(-50%);
+            background: rgba(0,0,0,.8); padding:4px 8px; border-radius:6px; font-size:.9em;
+        }
+        .bar.comparing { background:#f59e0b !important; }
+        .bar.sorted { background:#10b981 !important; }
+        .controls { display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; margin-bottom:6px; }
+        button {
+            background: rgba(255,255,255,0.12); border:2px solid rgba(255,255,255,0.18); color:white;
+            padding:10px 18px; border-radius:10px; cursor:pointer; font-weight:600;
+        }
+        button.primary { background:#3b82f6; border-color:#3b82f6; }
+        button:disabled { opacity:.5; cursor:not-allowed; }
+        .speed-control { display:flex; gap:8px; align-items:center; background: rgba(255,255,255,0.06); padding:8px 12px; border-radius:8px; }
+        .navigation { display:flex; justify-content:space-between; align-items:center; margin-top:22px; }
+        .dots { display:flex; gap:10px; }
+        .dot { width:12px; height:12px; border-radius:50%; background:rgba(255,255,255,0.25); cursor:pointer; transition:all .2s; }
+        .dot.active { width:30px; background:white; border-radius:6px; }
+        .slide-counter { text-align:center; margin-top:8px; opacity:.9; }
+        @media (max-width:768px){ h1{font-size:2em} .algo-title{font-size:1.4em} }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1> Sorting Algorithms</h1>
+            <p class="subtitle"></p>
+        </header>
+
+        <div id="slides-container"></div>
+
+        <div class="navigation">
+            <button onclick="previousSlide()">⬅ Previous</button>
+            <div class="dots" id="dots"></div>
+            <button onclick="nextSlide()">Next ➡</button>
+        </div>
+
+        <div class="slide-counter" id="counter"></div>
+    </div>
+
+    <script>
+
+    const algorithms = [
+        { name: "Bubble Sort", description: "Repeatedly compares and swaps adjacent elements until the array is sorted." },
+        { name: "Insertion Sort", description: "Builds the sorted array one item at a time by inserting elements in their correct position." },
+        { name: "Quicksort", description: "Divide-and-conquer algorithm using a pivot to partition the array recursively." },
+        { name: "Merge Sort", description: "Recursively splits the list into halves, sorts each half, and merges them." },
+        { name: "Selection Sort", description: "Selects the smallest element from the unsorted portion and swaps it with the first unsorted element." },
+        { name: "Radix Sort", description: "Non-comparative sort that processes digits (not implemented here)." },
+        { name: "Heap Sort", description: "Builds a heap then extracts max repeatedly (not implemented here)." },
+        { name: "Shell Sort", description: "Generalized insertion sort using gaps (not implemented here)." },
+        { name: "Intro Sort", description: "Quicksort + fallback to heapsort (not implemented here)." }
+    ];
+
+    let currentSlide = 0;
+    let array = [];
+    let isAnimating = false;
+    let animationSpeed = 100; // ms
+
+    function generateArray() {
+        array = [];
+        for (let i = 0; i < 20; i++) array.push(Math.floor(Math.random() * 90) + 10);
+        renderBars();
+    }
+
+    function renderBars() {
+        const container = document.querySelector(`#slide-${currentSlide} .bars-container`);
+        if (!container) return;
+        container.innerHTML = "";
+        const max = Math.max(...array);
+        array.forEach((value, i) => {
+            const bar = document.createElement("div");
+            bar.className = "bar";
+            bar.id = "bar-" + i;
+            bar.style.height = (value / max) * 100 + "%";
+            bar.setAttribute("data-value", value);
+            container.appendChild(bar);
+        });
+    }
+
+    function updateBarClass(i, cls) {
+        const b = document.getElementById("bar-" + i);
+        if (b) b.classList.add(cls);
+    }
+    function removeBarClass(i, cls) {
+        const b = document.getElementById("bar-" + i);
+        if (b) b.classList.remove(cls);
+    }
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  
+    async function bubbleSort() {
+        const arr = [...array];
+        const n = arr.length;
+        for (let i = 0; i < n - 1; i++) {
+            for (let j = 0; j < n - i - 1; j++) {
+                updateBarClass(j, "comparing");
+                updateBarClass(j + 1, "comparing");
+                await sleep(animationSpeed);
+                if (arr[j] > arr[j + 1]) {
+                    [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
+                    array = arr;
+                    renderBars();
+                }
+                removeBarClass(j, "comparing");
+                removeBarClass(j + 1, "comparing");
+            }
+            updateBarClass(n - i - 1, "sorted");
+        }
+        updateBarClass(0, "sorted");
+    }
+
+    async function insertionSort() {
+        const arr = [...array];
+        updateBarClass(0, "sorted");
+        for (let i = 1; i < arr.length; i++) {
+            let key = arr[i];
+            let j = i - 1;
+            updateBarClass(i, "comparing");
+            await sleep(animationSpeed);
+            while (j >= 0 && arr[j] > key) {
+                arr[j + 1] = arr[j];
+                array = arr;
+                renderBars();
+                updateBarClass(j, "comparing");
+                await sleep(animationSpeed);
+                j--;
+            }
+            arr[j + 1] = key;
+            array = arr;
+            renderBars();
+            for (let k = 0; k <= i; k++) updateBarClass(k, "sorted");
+        }
+    }
+
+    // Quicksort (animated)
+    async function quickSort() {
+        const arr = [...array];
+        await quickSortHelper(arr, 0, arr.length - 1);
+        arr.forEach((_, i) => updateBarClass(i, "sorted"));
+    }
+    async function quickSortHelper(arr, low, high) {
+        if (low < high) {
+            const pi = await partition(arr, low, high);
+            await quickSortHelper(arr, low, pi - 1);
+            await quickSortHelper(arr, pi + 1, high);
+        }
+    }
+    async function partition(arr, low, high) {
+        const pivot = arr[high];
+        let i = low - 1;
+        for (let j = low; j < high; j++) {
+            updateBarClass(j, "comparing");
+            updateBarClass(high, "comparing");
+            await sleep(animationSpeed);
+            if (arr[j] < pivot) {
+                i++;
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+                array = arr;
+                renderBars();
+            }
+            removeBarClass(j, "comparing");
+        }
+        [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]];
+        array = arr;
+        renderBars();
+        removeBarClass(high, "comparing");
+        return i + 1;
+    }
+
+    // Merge sort (animated)
+    async function mergeSort() {
+        const arr = [...array];
+        await mergeSortHelper(arr, 0, arr.length - 1);
+        array = arr;
+        renderBars();
+        arr.forEach((_, i) => updateBarClass(i, "sorted"));
+    }
+    async function mergeSortHelper(arr, l, r) {
+        if (l >= r) return;
+        const m = Math.floor((l + r) / 2);
+        await mergeSortHelper(arr, l, m);
+        await mergeSortHelper(arr, m + 1, r);
+        await merge(arr, l, m, r);
+    }
+    async function merge(arr, l, m, r) {
+        let i = l, j = m + 1;
+        const temp = [];
+        while (i <= m && j <= r) {
+            updateBarClass(i, "comparing");
+            updateBarClass(j, "comparing");
+            await sleep(animationSpeed);
+            if (arr[i] <= arr[j]) {
+                temp.push(arr[i++]);
+            } else {
+                temp.push(arr[j++]);
+            }
+            document.querySelectorAll(".bar").forEach(b => b.classList.remove("comparing"));
+        }
+        while (i <= m) temp.push(arr[i++]);
+        while (j <= r) temp.push(arr[j++]);
+        for (let k = 0; k < temp.length; k++) {
+            arr[l + k] = temp[k];
+            array = arr;
+            renderBars();
+            await sleep(animationSpeed);
+        }
+    }
+
+    // Selection sort (animated)
+    async function selectionSort() {
+        const arr = [...array];
+        const n = arr.length;
+        for (let i = 0; i < n - 1; i++) {
+            let minIdx = i;
+            updateBarClass(minIdx, "comparing");
+            for (let j = i + 1; j < n; j++) {
+                updateBarClass(j, "comparing");
+                await sleep(animationSpeed);
+                if (arr[j] < arr[minIdx]) {
+                    removeBarClass(minIdx, "comparing");
+                    minIdx = j;
+                    updateBarClass(minIdx, "comparing");
+                } else {
+                    removeBarClass(j, "comparing");
+                }
+            }
+            if (minIdx !== i) {
+                [arr[i], arr[minIdx]] = [arr[minIdx], arr[i]];
+                array = arr;
+                renderBars();
+            }
+            removeBarClass(minIdx, "comparing");
+            updateBarClass(i, "sorted");
+        }
+        updateBarClass(n - 1, "sorted");
+    }
+
+    async function radixSort() {
+    let arr = [...array];
+    let maxNum = Math.max(...arr);
+
+    let exp = 1;
+    while (Math.floor(maxNum / exp) > 0) {
+        await countingSortByDigit(arr, exp);
+        exp *= 10;
+    }
+
+    arr.forEach((_, i) => updateBarClass(i, "sorted"));
+    }
+
+    async function countingSortByDigit(arr, exp) {
+        const output = new Array(arr.length).fill(0);
+        const count = new Array(10).fill(0);
+
+        for (let i = 0; i < arr.length; i++) {
+            const digit = Math.floor(arr[i] / exp) % 10;
+            count[digit]++;
+        }
+
+        for (let i = 1; i < 10; i++) {
+            count[i] += count[i - 1];
+        }
+
+        for (let i = arr.length - 1; i >= 0; i--) {
+            const digit = Math.floor(arr[i] / exp) % 10;
+            output[count[digit] - 1] = arr[i];
+            count[digit]--;
+        }
+
+        for (let i = 0; i < arr.length; i++) {
+            arr[i] = output[i];
+            array = arr;
+            updateBarClass(i, "swapping");
+            await sleep(animationSpeed);
+            renderBars();
+            removeBarClass(i, "swapping");
+        }
+    }
+
+    async function heapSort() {
+    let arr = [...array];
+    let n = arr.length;
+
+    for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+        await heapify(arr, n, i);
+    }
+
+    for (let i = n - 1; i > 0; i--) {
+        [arr[0], arr[i]] = [arr[i], arr[0]];
+        updateBarClass(i, "swapping");
+        array = arr;
+        renderBars();
+        await sleep(animationSpeed);
+        removeBarClass(i, "swapping");
+
+        await heapify(arr, i, 0);
+    }
+
+    arr.forEach((_, i) => updateBarClass(i, "sorted"));
+    }
+
+    async function heapify(arr, n, i) {
+        let largest = i;
+        const left = 2 * i + 1;
+        const right = 2 * i + 2;
+
+        if (left < n && arr[left] > arr[largest]) largest = left;
+        if (right < n && arr[right] > arr[largest]) largest = right;
+
+        updateBarClass(i, "comparing");
+        await sleep(animationSpeed);
+        removeBarClass(i, "comparing");
+
+        if (largest !== i) {
+            [arr[i], arr[largest]] = [arr[largest], arr[i]];
+
+            array = arr;
+            updateBarClass(largest, "swapping");
+            renderBars();
+            await sleep(animationSpeed);
+            removeBarClass(largest, "swapping");
+
+            await heapify(arr, n, largest);
+        }
+    }
+
+    async function shellSort() {
+    let arr = [...array];
+    let gap = Math.floor(arr.length / 2);
+
+        while (gap > 0) {
+            for (let i = gap; i < arr.length; i++) {
+                let temp = arr[i];
+                let j = i;
+
+                while (j >= gap && arr[j - gap] > temp) {
+                    updateBarClass(j, "comparing");
+                    await sleep(animationSpeed);
+
+                    arr[j] = arr[j - gap];
+                    array = arr;
+                    renderBars();
+
+                    removeBarClass(j, "comparing");
+                    j -= gap;
+                }
+
+                arr[j] = temp;
+                array = arr;
+                renderBars();
+            }
+            gap = Math.floor(gap / 2);
+        }
+
+        arr.forEach((_, i) => updateBarClass(i, "sorted"));
+    }
+
+
+    async function introSort() {
+        let arr = [...array];
+        let maxDepth = 2 * Math.floor(Math.log2(arr.length));
+
+        await introSortHelper(arr, 0, arr.length - 1, maxDepth);
+
+        arr.forEach((_, i) => updateBarClass(i, "sorted"));
+    }
+
+    async function introSortHelper(arr, low, high, depthLimit) {
+        if (low >= high) return;
+
+        const size = high - low + 1;
+
+        if (size < 16) {
+            await insertionSortRange(arr, low, high);
+            return;
+        }
+
+        if (depthLimit === 0) {
+            await heapSortRange(arr, low, high);
+            return;
+        }
+
+        const pivot = await partition(arr, low, high);
+        await introSortHelper(arr, low, pivot - 1, depthLimit - 1);
+        await introSortHelper(arr, pivot + 1, high, depthLimit - 1);
+    }
+
+    // helpers
+    async function insertionSortRange(arr, low, high) {
+        for (let i = low + 1; i <= high; i++) {
+            let key = arr[i];
+            let j = i - 1;
+
+            while (j >= low && arr[j] > key) {
+                arr[j + 1] = arr[j];
+                array = arr;
+                renderBars();
+                j--;
+                await sleep(animationSpeed);
+            }
+
+            arr[j + 1] = key;
+            array = arr;
+            renderBars();
+        }
+    }
+
+    async function heapSortRange(arr, low, high) {
+        let size = high - low + 1;
+
+        for (let i = Math.floor(size / 2) - 1; i >= 0; i--) {
+            await heapifyRange(arr, size, low, i);
+        }
+
+        for (let i = size - 1; i > 0; i--) {
+            [arr[low], arr[low + i]] = [arr[low + i], arr[low]];
+            array = arr;
+            renderBars();
+            await sleep(animationSpeed);
+            await heapifyRange(arr, i, low, 0);
+        }
+    }
+
+    async function heapifyRange(arr, size, low, i) {
+        let largest = i;
+        let left = 2 * i + 1;
+        let right = 2 * i + 2;
+
+        if (left < size && arr[low + left] > arr[low + largest])
+            largest = left;
+
+        if (right < size && arr[low + right] > arr[low + largest])
+            largest = right;
+
+        if (largest !== i) {
+            [arr[low + i], arr[low + largest]] = [
+                arr[low + largest],
+                arr[low + i]
+            ];
+
+            array = arr;
+            renderBars();
+            await sleep(animationSpeed);
+
+            await heapifyRange(arr, size, low, largest);
+        }
+    }
+
+   
+    async function startSort() {
+        if (isAnimating) return;
+        isAnimating = true;
+        const startBtn = document.querySelector(`#slide-${currentSlide} .start-btn`);
+        if (startBtn) startBtn.disabled = true;
+
+        // clear classes
+        document.querySelectorAll(".bar").forEach(b => b.classList.remove("comparing", "sorted"));
+
+        const algoName = algorithms[currentSlide].name;
+        if (algoName === "Bubble Sort") await bubbleSort();
+        else if (algoName === "Insertion Sort") await insertionSort();
+        else if (algoName === "Quicksort") await quickSort();
+        else if (algoName === "Merge Sort") await mergeSort();
+        else if (algoName === "Selection Sort") await selectionSort();
+        else if (algoName === "Radix Sort") await radixSort();
+        else if (algoName === "Heap Sort") await heapSort();
+        else if (algoName === "Shell Sort") await shellSort();
+        else if (algoName === "Intro Sort") await introSort();
+        else alert(" Algorithm not implemented yet!");
+
+        isAnimating = false;
+        if (startBtn) startBtn.disabled = false;
+    }
+
+    function resetArray() {
+        if (isAnimating) return;
+        generateArray();
+    }
+
+    function createSlides() {
+        const container = document.getElementById("slides-container");
+        const dots = document.getElementById("dots");
+        container.innerHTML = "";
+        dots.innerHTML = "";
+
+        algorithms.forEach((algo, idx) => {
+            const slide = document.createElement("div");
+            slide.className = "slide";
+            slide.id = `slide-${idx}`;
+            if (idx === 0) slide.classList.add("active");
+
+            slide.innerHTML = `
+                <h2 class="algo-title">${algo.name}</h2>
+                <p class="description">${algo.description}</p>
+
+                <div class="visualization">
+                    <div class="bars-container"></div>
+                </div>
+
+                <div class="controls">
+                    <button class="primary start-btn" onclick="startSort()"> Start Sort</button>
+                    <button onclick="resetArray()"> Reset</button>
+                    <div class="speed-control">
+                        <span style="opacity:.9">Speed</span>
+                        <input type="range" min="10" max="500" value="${animationSpeed}" oninput="animationSpeed = this.value">
+                    </div>
+                </div>
+            `;
+            container.appendChild(slide);
+
+            const dot = document.createElement("div");
+            dot.className = "dot" + (idx === 0 ? " active" : "");
+            dot.onclick = () => goToSlide(idx);
+            dots.appendChild(dot);
+        });
+
+        generateArray();
+        updateCounter();
+    }
+
+    function goToSlide(index) {
+        if (isAnimating) return;
+        document.querySelectorAll(".slide").forEach(s => s.classList.remove("active"));
+        document.querySelectorAll(".dot").forEach(d => d.classList.remove("active"));
+        currentSlide = index;
+        document.getElementById(`slide-${index}`).classList.add("active");
+        document.querySelectorAll(".dot")[index].classList.add("active");
+        generateArray();
+        updateCounter();
+    }
+
+    function nextSlide() { if (currentSlide < algorithms.length - 1) goToSlide(currentSlide + 1); }
+    function previousSlide() { if (currentSlide > 0) goToSlide(currentSlide - 1); }
+
+    function updateCounter() { document.getElementById("counter").textContent = `${currentSlide + 1} / ${algorithms.length}`; }
+
+    // keyboard navigation
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight") nextSlide();
+        if (e.key === "ArrowLeft") previousSlide();
+    });
+
+    // initialize
+    createSlides();
+    </script>
+</body>
+</html>
